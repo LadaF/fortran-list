@@ -1,51 +1,7 @@
 
-  implicit none
-  
-!   type nil
-!   end type
-
-  type list_node
-    TYPEPARAM :: item
-    type(list_node),pointer :: next =>null()
-  end type list_node
-
-  type list
-    type(list_node),pointer,private :: first => null()
-    type(list_node),pointer,private :: last => null()
-    type(list_node),pointer,private :: iter => null()
-    integer                ,private :: length = 0
-    contains
-      procedure :: deallocate => list_deallocate
-      procedure :: add => list_add
-      procedure :: iter_next => list_iter_next
-      procedure :: iter_restart => list__iter_restart
-      procedure :: for_each => list_for_each
-      procedure :: all => list_All
-      procedure :: any => list_Any
-      procedure :: len => list_len
-      procedure :: get_first => list_get_first
-      procedure :: get_last => list_get_last
-      procedure :: push => list_push
-      procedure :: pop => list_pop
-      procedure :: pop_first => list_pop_first
-  end type list
-
-  abstract interface
-    subroutine for_each_sub(item)
-      import
-      TYPEPARAM,intent(inout) :: item
-    end subroutine
-    logical function elem_logical_fun(item)
-      import
-      TYPEPARAM,intent(in) :: item
-    end function
-  end interface
 
 
-  contains
-
-
-    subroutine list_deallocate(self)
+    recursive subroutine list_finalize(self)
       class(list),intent(inout) :: self
       type(list_node),pointer :: node,tmp
 
@@ -54,7 +10,9 @@
       do while (associated(node))
         tmp => node
         node => node%next
-
+#ifdef FINALIZABLE
+        call tmp%item%finalize
+#endif
         deallocate(tmp)
       end do
 
@@ -95,21 +53,21 @@
     end subroutine
 
 
-    subroutine list_iter_next(self,res)
+    function list_iter_next(self) result(res)
       class(list),intent(inout) :: self
-      TYPEPARAM,intent(out) :: res
+      TYPEPARAM,pointer :: res
 
       if (associated(self%iter)) then
-        res = self%iter%item
+        res => self%iter%item
         self%iter => self%iter%next
       else
-        res = ''
+        res => null()
       end if
-    end subroutine
+    end function
 
-    subroutine list_for_each(self,proc)
+    recursive subroutine list_for_each(self,proc)
       class(list),intent(inout) :: self
-      procedure(for_each_sub) :: proc
+      procedure(foreach_sub) :: proc
       type(list_node),pointer :: node
 
       node => self%first
@@ -121,7 +79,7 @@
 
     end subroutine
 
-    logical function list_all(self,proc) result(res)
+    recursive logical function list_all(self,proc) result(res)
       class(list),intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(list_node),pointer :: node
@@ -138,7 +96,7 @@
 
     end function
 
-    logical function list_any(self,proc) result(res)
+    recursive logical function list_any(self,proc) result(res)
       class(list),intent(inout) :: self
       procedure(elem_logical_fun) :: proc
       type(list_node),pointer :: node
